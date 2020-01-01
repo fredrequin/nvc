@@ -28,6 +28,8 @@
 #include <ctype.h>
 #include <assert.h>
 
+int keep_case = 0;
+
 const char *copy_string =
    "Copyright (C) 2011-2018  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
@@ -108,6 +110,7 @@ static int analyse(int argc, char **argv)
       { "dump-json",       required_argument, 0, 'j' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
+      { "dump-sv",         optional_argument, 0, 's' },
       { "parse-pragmas",   no_argument,       0, 'P' },
       { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
       { "relax",           required_argument, 0, 'R' },
@@ -133,6 +136,10 @@ static int analyse(int argc, char **argv)
          break;
       case 'v':
          opt_set_str("dump-vcode", optarg ?: "");
+         break;
+      case 's':
+         opt_set_str("dump-sv", optarg ?: "");
+         keep_case = 1;
          break;
       case 'j':
          opt_set_str("dump-json", optarg ?: "");
@@ -179,6 +186,10 @@ static int analyse(int argc, char **argv)
 
    if (opt_get_str("dump-json")) {
       dump_json(units, n_units, opt_get_str("dump-json"));
+   }
+
+   if (opt_get_str("dump-sv")) {
+      dump_sv(units, n_units, opt_get_str("dump-sv"));
    }
 
    lib_save(lib_work());
@@ -256,6 +267,7 @@ static int elaborate(int argc, char **argv)
       { "disable-opt", no_argument,       0, 'o' },    // DEPRECATED
       { "dump-llvm",   no_argument,       0, 'd' },
       { "dump-vcode",  optional_argument, 0, 'v' },
+      { "dump-sv",     optional_argument, 0, 's' },
       { "native",      no_argument,       0, 'n' },    // DEPRECATED
       { "cover",       no_argument,       0, 'c' },
       { "verbose",     no_argument,       0, 'V' },
@@ -286,6 +298,10 @@ static int elaborate(int argc, char **argv)
          break;
       case 'v':
          opt_set_str("dump-vcode", optarg ?: "");
+         break;
+      case 's':
+         opt_set_str("dump-sv", optarg ?: "");
+         keep_case = 1;
          break;
       case 'n':
          warnf("--native is now a global option: place before the -e command");
@@ -329,6 +345,10 @@ static int elaborate(int argc, char **argv)
 
    group_nets(e);
    elab_verbose(verbose, "grouping nets");
+
+   if (opt_get_str("dump-sv")) {
+      dump_sv(&unit, 1, opt_get_str("dump-sv"));
+   }
 
    // Save the library now so the code generator can attach temporary
    // meta data to trees
@@ -784,6 +804,7 @@ static void set_default_opts(void)
    opt_set_int("make-deps-only", 0);
    opt_set_int("make-posix", 0);
    opt_set_str("dump-vcode", NULL);
+   opt_set_str("dump-sv", NULL);
    opt_set_int("relax", 0);
    opt_set_int("ignore-time", 0);
    opt_set_int("force-init", 0);
@@ -822,6 +843,8 @@ static void usage(void)
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           "     --parse-pragmas\tEnable parsing comments for pragmas\n"
           "     --relax=RULES\tDisable certain pedantic rule checks\n"
+          "     --dump-json\tPrint a JSON VHDL representation of the given unit\n"
+          "     --dump-sv\tPrint a SystemVerilog representation of the given unit\n"
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"

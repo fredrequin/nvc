@@ -70,6 +70,9 @@ void dump(tree_t top);
 // Dump out a JSON VHDL representation of the given unit
 void dump_json(tree_t *elements, unsigned int n_elements, const char *filename);
 
+// Dump out a SystemVerilog representation of the given unit
+void dump_sv(tree_t *elements, unsigned int n_elements, const char *filename);
+
 // Print out the interconnect nets in an elaborated design
 void dump_nets(tree_t top);
 

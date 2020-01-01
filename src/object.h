@@ -121,8 +121,12 @@ DECLARE_ARRAY(ident);
          const imask_t has = has_map[(t)->object.kind];                 \
                                                                         \
          if (unlikely((has & mask) == 0))                               \
+         {                                                              \
+            fprintf(stderr,"Function %s, file %s, line %d\n",           \
+                           __FUNCTION__, __FILE__, __LINE__);           \
             object_lookup_failed((class)->name, kind_text_map,          \
                                  (t)->object.kind, mask);               \
+         }                                                              \
                                                                         \
          const int tzc = __builtin_ctzll(mask);                         \
          const int off = ((t)->object.kind * 64) + tzc;                 \

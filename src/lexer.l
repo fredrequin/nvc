@@ -68,6 +68,8 @@ extern loc_t yylloc;
 
 yylval_t yylval;
 
+extern int keep_case;
+
 void begin_token(char *tok);
 int get_next_char(char *b, int max_buffer);
 %}
@@ -387,16 +389,45 @@ static int resolve_ir1045(void)
    }
 }
 
+static const char *ieee_id[] =
+{
+    "boolean",
+    "integer",
+    "std_logic",
+    "std_logic_vector",
+    "signed",
+    "unsigned",
+    "falling_edge",
+    "rising_edge",
+    "conv_integer",
+    "to_integer",
+    "true",
+    "false"
+};
+
 static int parse_id(const char *str)
 {
-   char *p = (yylval.s = xmalloc(strlen(str) + 1));
-   while (*str) {
-      *p++ = toupper((int)*str);
-      str++;
-   }
-   *p = '\0';
+    char *p = (yylval.s = xmalloc(strlen(str) + 1));
+    if (keep_case)
+    {
+        for (size_t i = 0; i < ARRAY_LEN(ieee_id); i++)
+        {
+            if (strcmp(str, ieee_id[i]) == 0) goto copy_upper;
+        }
+        strcpy(p, str);
+    }
+    else
+    {
+copy_upper:
+        while (*str)
+        {
+            *p++ = toupper((int)*str);
+            str++;
+        }
+        *p = '\0';
+    }
 
-   TOKEN(tID);
+    TOKEN(tID);
 }
 
 static int parse_ex_id(const char *str)
