@@ -26,7 +26,8 @@ static void dump_decls(FILE* fh, tree_t t);
 
 #define TAB_SIZE (4)
 static int g_tab;
-static int g_comb;
+static int g_comb; // Combinatorial mode
+static int g_gen;  // Generate mode
 
 static void dump_tab(FILE* fh)
 {
@@ -199,6 +200,7 @@ static void dump_expr(FILE* fh, tree_t t)
                     "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR",
                     "IEEE.STD_LOGIC_UNSIGNED.CONV_INTEGER",
                     "IEEE.NUMERIC_STD.TO_INTEGER",
+                    "IEEE.NUMERIC_STD.TO_UNSIGNED",
                     "IEEE.NUMERIC_STD.UNSIGNED"
                 };
                 static const char *sv_fn[] =
@@ -208,6 +210,7 @@ static void dump_expr(FILE* fh, tree_t t)
                     "std_logic_vector",
                     "conv_integer",
                     "to_integer",
+                    "to_unsigned",
                     "unsigned"
                 };
                 for (i = 0; i < ARRAY_LEN(vhd_fn); i++)
@@ -234,7 +237,7 @@ static void dump_expr(FILE* fh, tree_t t)
                 }
                 else
                 {
-                    fprintf(fh, "%s", func);
+                    fprintf(fh, "func %s", func);
                     dump_params(fh, t, tree_param, tree_params(t), NULL);
                 }
             }
@@ -261,14 +264,41 @@ static void dump_expr(FILE* fh, tree_t t)
                     fprintf(fh, "#null");
                     break;
                 }
-                // i.e : vector value
+                // i.e : vector value or string parameter
                 case L_STRING:
                 {
                     const int nchars = tree_chars(t);
-                    fprintf(fh, "%d'b", nchars);
+                    int is_str = (type_ident(tree_type(t)) == string_i) ? 1 : 0;
+                    
+                    if (is_str)
+                    {
+                        // String
+                        fputc('\"', fh);
+                    }
+                    else
+                    {
+                        // Vector
+                        fprintf(fh, "%d'b", nchars);
+                    }
                     for (int i = 0; i < nchars; i++)
                     {
-                        fprintf(fh, "%c", ident_char(tree_ident(tree_char(t, i)), 1));
+                        char ch = ident_char(tree_ident(tree_char(t, i)), 1);
+                        
+                        if (!is_str)
+                        {
+                            // Vector states translate
+                            if (ch == 'U') ch = 'X';
+                            if (ch == 'W') ch = 'X';
+                            if (ch == 'L') ch = '0';
+                            if (ch == 'H') ch = '1';
+                            if (ch == '-') ch = 'X';
+                        }
+                        fputc(ch, fh);
+                    }
+                    if (is_str)
+                    {
+                        // String
+                        fputc('\"', fh);
                     }
                     break;
                 }
@@ -1329,7 +1359,9 @@ static void dump_stmt(FILE* fh, tree_t t)
             {
                 g_tab--;
                 dump_tab(fh);
-                fprintf(fh, "end else begin\n");
+                fprintf(fh, "end\n");
+                dump_tab(fh);
+                fprintf(fh, "else begin\n");
                 g_tab++;
                 for (i = 0; i < tree_else_stmts(t); i++)
                 {
@@ -1419,7 +1451,7 @@ static void dump_stmt(FILE* fh, tree_t t)
             range_t r = tree_range(t, 0);
             
             dump_tab(fh);
-            fprintf(fh, "for (%s = ", v);
+            fprintf(fh, "for (int %s = ", v);
             dump_expr(fh, r.left);
             fprintf(fh, "; %s <= ", v);
             dump_expr(fh, r.right);
@@ -1450,7 +1482,7 @@ static void dump_stmt(FILE* fh, tree_t t)
         
         case T_PCALL:
         {
-            fprintf(fh, "%s", istr(tree_ident(tree_ref(t))));
+            fprintf(fh, "proc %s", istr(tree_ident(tree_ref(t))));
             dump_params(fh, t, tree_param, tree_params(t), NULL);
             break;
         }
@@ -1460,10 +1492,14 @@ static void dump_stmt(FILE* fh, tree_t t)
             const char *v = istr(tree_ident2(t));
             range_t r = tree_range(t, 0);
             
+            if (g_gen == 0)
+            {
+                dump_tab(fh);
+                fprintf(fh, "generate\n");
+            }
+            g_gen++;
             dump_tab(fh);
-            fprintf(fh, "generate\n");
-            dump_tab(fh);
-            fprintf(fh, "for (%s = ", v);
+            fprintf(fh, "for (int %s = ", v);
             dump_expr(fh, r.left);
             fprintf(fh, "; %s <= ", v);
             dump_expr(fh, r.right);
@@ -1491,16 +1527,24 @@ static void dump_stmt(FILE* fh, tree_t t)
             g_tab--;
             dump_tab(fh);
             fprintf(fh, "end\n");
-            dump_tab(fh);
-            fprintf(fh, "endgenerate\n");
+            g_gen--;
+            if (g_gen == 0)
+            {
+                dump_tab(fh);
+                fprintf(fh, "endgenerate\n");
+            }
             fflush(fh);
             return;
         }
         
         case T_IF_GENERATE:
         {
-            dump_tab(fh);
-            fprintf(fh, "generate\n");
+            if (g_gen == 0)
+            {
+                dump_tab(fh);
+                fprintf(fh, "generate\n");
+            }
+            g_gen++;
             dump_tab(fh);
             fprintf(fh, "if ");
             dump_expr(fh, tree_value(t));
@@ -1517,8 +1561,12 @@ static void dump_stmt(FILE* fh, tree_t t)
             g_tab--;
             dump_tab(fh);
             fprintf(fh, "end\n");
-            dump_tab(fh);
-            fprintf(fh, "endgenerate\n");
+            g_gen--;
+            if (g_gen == 0)
+            {
+                dump_tab(fh);
+                fprintf(fh, "endgenerate\n");
+            }
             fflush(fh);
             return;
         }
@@ -1733,13 +1781,14 @@ static void dump_entity(FILE* fh, tree_t t)
     const char *mod;
     
     dump_context(fh, t);
+    fprintf(fh, "/* verilator lint_off DECLFILENAME */\n");
     mod = strstr(istr(tree_ident(t)), ".");
     fprintf(fh, "module %s", mod + 1);
     
+    // Dump parameters
     n = tree_generics(t);
     if (n > 0)
     {
-        // VHDL "generic" -> SystemVerilog "parameter"
         fprintf(fh, "\n#(\n");
         for (i = 0; i < n; i++)
         {
@@ -1756,10 +1805,10 @@ static void dump_entity(FILE* fh, tree_t t)
         c = ';';
     }
     
+    // Dump ports
     n = tree_ports(t);
     if (n > 0)
     {
-        // VHDL "port" -> SystemVerilog "port"
         fprintf(fh, "\n(\n");
         for (i = 0; i < n; i++)
         {
@@ -1810,6 +1859,7 @@ static void dump_arch(FILE* fh, tree_t t)
         dump_stmt(fh, tree_stmt(t, i));
     }
     fprintf(fh, "endmodule\n");
+    fprintf(fh, "/* verilator lint_on DECLFILENAME */\n");
 }
 
 static void trees_to_sv(FILE* fh, tree_t *elements, unsigned int n_elements)
@@ -1885,6 +1935,7 @@ void dump_sv(tree_t *elements, unsigned int n_elements, const char *filename)
     
     g_tab  = 1;
     g_comb = 0;
+    g_gen  = 0;
     trees_to_sv(dump_file, elements, n_elements);
     
     fclose(dump_file);

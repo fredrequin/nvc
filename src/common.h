@@ -175,6 +175,7 @@ GLOBAL ident_t std_char_i;
 GLOBAL ident_t std_bit_i;
 GLOBAL ident_t natural_i;
 GLOBAL ident_t positive_i;
+GLOBAL ident_t string_i;
 GLOBAL ident_t unsigned_i;
 GLOBAL ident_t signed_i;
 GLOBAL ident_t foreign_i;

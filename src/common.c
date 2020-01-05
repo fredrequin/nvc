@@ -918,6 +918,7 @@ void intern_strings(void)
    std_char_i       = ident_new("STD.STANDARD.CHARACTER");
    natural_i        = ident_new("STD.STANDARD.NATURAL");
    positive_i       = ident_new("STD.STANDARD.POSITIVE");
+   string_i         = ident_new("STD.STANDARD.STRING");
    signed_i         = ident_new("IEEE.NUMERIC_STD.SIGNED");
    unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
    foreign_i        = ident_new("FOREIGN");

@@ -391,6 +391,11 @@ static int resolve_ir1045(void)
 
 static const char *ieee_id[] =
 {
+    "ieee",
+    "numeric_std",
+    "std_logic_1164",
+    "std_logic_arith",
+    "std_logic_unsigned",
     "boolean",
     "integer",
     "std_logic",
@@ -400,7 +405,9 @@ static const char *ieee_id[] =
     "falling_edge",
     "rising_edge",
     "conv_integer",
+    "resize",
     "to_integer",
+    "to_unsigned",
     "true",
     "false"
 };

@@ -128,7 +128,7 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
          json_append_member(expr_node, "value", json_mknull());
          break;
       case L_STRING:
-         if (type_ident(tree_type(t)) == ident_new("STD.STANDARD.STRING"))
+         if (type_ident(tree_type(t)) == string_i)
             json_append_member(expr_node, "cls", json_mkstring("string"));
          else
             json_append_member(expr_node, "cls", json_mkstring("string_lit"));
