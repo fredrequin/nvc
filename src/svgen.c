@@ -24,16 +24,17 @@ static void dump_decls(FILE* fh, tree_t t);
 //static void dump_block(FILE* fh, tree_t t);
 //static void dump_params(FILE* fh, tree_t t, get_fn_t get, int n, const char *prefix);
 
-#define TAB_SIZE (4)
-static int         g_tab;
+#define TAB_SIZE   (4)
+static int         g_tab;   // Number of tab/indent
 static int         g_comb;  // Combinatorial mode
+static int         g_if;    // If mode
 static int         g_gen;   // Generate mode
 static int         g_rst;   // Positive / negative reset
 static int         g_clk;   // Rising / falling edge
-static const char *g_v_rst; // Reset signal
-static const char *g_v_clk; // Clock signal
 static tree_t      g_t_rst; // "if" reset node
 static tree_t      g_t_clk; // "if" clock node
+static ident_t     g_i_rst; // Reset name
+static ident_t     g_i_clk; // Clock name
 
 static void dump_tab(FILE* fh)
 {
@@ -100,6 +101,13 @@ static void dump_expr(FILE* fh, tree_t t)
                 // operator
                 static const char *vhd_op[] =
                 {
+                    "\"not\"",
+                    "\"and\"",
+                    "\"or\"",
+                    "\"xor\"",
+                    "\"nand\"",
+                    "\"nor\"",
+                    "\"xnor\"",
                     "\"**\"",
                     "\"*\"",
                     "\"/\"",
@@ -114,13 +122,6 @@ static void dump_expr(FILE* fh, tree_t t)
                     "\"sra\"",
                     "\"rol\"",
                     "\"ror\"",
-                    "\"and\"",
-                    "\"or\"",
-                    "\"xor\"",
-                    "\"nand\"",
-                    "\"nor\"",
-                    "\"xnor\"",
-                    "\"not\"",
                     "\"=\"",
                     "\"/=\"",
                     "\"<\"",
@@ -130,6 +131,13 @@ static void dump_expr(FILE* fh, tree_t t)
                 };
                 static const char *sv_op[] =
                 {
+                    " ~",
+                    " & ",
+                    " | ",
+                    " ^ ",
+                    " ~& ",
+                    " ~| ",
+                    " ~^ ",
                     "**",
                     " * ",
                     " / ",
@@ -144,13 +152,6 @@ static void dump_expr(FILE* fh, tree_t t)
                     " >>> ",
                     "\"rol\"",
                     "\"ror\"",
-                    " & ",
-                    " | ",
-                    " ^ ",
-                    " ~& ",
-                    " ~| ",
-                    " ~^ ",
-                    " ~",
                     " == ",
                     " != ",
                     " < ",
@@ -172,6 +173,8 @@ static void dump_expr(FILE* fh, tree_t t)
                 // unary operators
                 if (n == 1)
                 {
+                    // "if" statement : ~ becomes !
+                    if ((g_if) && (i == 0)) op = " !";
                     tree_t p = tree_param(t, 0);
                     fprintf(fh, "%s(", op);
                     dump_expr(fh, tree_value(p));
@@ -181,6 +184,10 @@ static void dump_expr(FILE* fh, tree_t t)
                 else if (n == 2)
                 {
                     tree_t p;
+                    // "if" statement : | becomes ||
+                    if ((g_if) && (i == 1)) op = " && ";
+                    // "if" statement : & becomes &&
+                    if ((g_if) && (i == 2)) op = " || ";
                     fprintf(fh, "(");
                     p = tree_param(t, 0);
                     dump_expr(fh, tree_value(p));
@@ -645,12 +652,14 @@ static void dump_op(FILE* fh, tree_t t)
 static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
 {
     // Clock signal
-    g_v_clk = "";
+    const char *sig_0 = "";
     g_t_clk = NULL;
+    g_i_clk = NULL;
     g_clk   = 0;
     // Reset signal
-    g_v_rst = "";
+    const char *sig_1 = "";
     g_t_rst = NULL;
+    g_i_rst = NULL;
     g_rst   = 0;
     
     if (s == 0)
@@ -660,7 +669,8 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
     else if (s == 1) // Maybe one clock ?
     {
         // Potential clock signal
-        g_v_clk = istr(tree_ident(tree_ref(tree_trigger(sl, 0))));
+        g_i_clk = tree_ident(tree_ref(tree_trigger(sl, 0)));
+        sig_0   = istr(g_i_clk);
         
         // Check for :
         // if rising_edge(clk) then ... -> g_clk = +1
@@ -682,20 +692,20 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                 }
                 
                 if ((strcmp(func,"IEEE.STD_LOGIC_1164.RISING_EDGE") == 0) &&
-                    (strcmp(g_v_clk, par_0) == 0))
+                    (strcmp(sig_0, par_0) == 0))
                 {
                     g_clk   = 1;
                     g_t_clk = tree_stmt(t, 0);
                 }
                 
                 if ((strcmp(func,"IEEE.STD_LOGIC_1164.FALLING_EDGE") == 0) &&
-                    (strcmp(g_v_clk, par_0) == 0))
+                    (strcmp(sig_0, par_0) == 0))
                 {
                     g_clk   = -1;
                     g_t_clk = tree_stmt(t, 0);
                 }
                 
-                //fprintf(fh, "1 : %s %s %s\n", func, g_v_clk, par_0);
+                //fprintf(fh, "1 : %s %s %s\n", func, sig_0, par_0);
                 //fflush(fh);
             }
             
@@ -735,7 +745,7 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                         //fprintf(fh, "T_FCALL %s %s %s", func, par_1, par_2);
                     }
                     
-                    if ((strcmp(g_v_clk, par_0) == 0) && (strcmp(g_v_clk, par_1) == 0) &&
+                    if ((strcmp(sig_0, par_0) == 0) && (strcmp(sig_0, par_1) == 0) &&
                         (strcmp(attr, "EVENT") == 0) && (strcmp(func, "\"=\"") == 0))
                     {
                         if (strcmp(par_2, "'1'") == 0)
@@ -760,8 +770,10 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
     else // Maybe one reset and one clock ?
     {
         // Potential clock and reset signals
-        g_v_clk = istr(tree_ident(tree_ref(tree_trigger(sl, 0))));
-        g_v_rst = istr(tree_ident(tree_ref(tree_trigger(sl, 1))));
+        g_i_clk = tree_ident(tree_ref(tree_trigger(sl, 0)));
+        sig_0   = istr(g_i_clk);
+        g_i_rst = tree_ident(tree_ref(tree_trigger(sl, 1)));
+        sig_1   = istr(g_i_rst);
         
         // Check for :
         // if (rst = '1') then ... -> g_rst = +1
@@ -787,7 +799,7 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                 }
                 
                 if ((strcmp(func,"\"=\"") == 0) &&
-                    (strcmp(g_v_rst, par_0) == 0) &&
+                    (strcmp(sig_1, par_0) == 0) &&
                     (strcmp("'1'", par_1) == 0))
                 {
                     g_rst   = 1;
@@ -795,7 +807,7 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                 }
                 
                 if ((strcmp(func,"\"=\"") == 0) &&
-                    (strcmp(g_v_rst, par_0) == 0) &&
+                    (strcmp(sig_1, par_0) == 0) &&
                     (strcmp("'0'", par_1) == 0))
                 {
                     g_rst   = -1;
@@ -803,28 +815,32 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                 }
                 
                 if ((strcmp(func,"\"=\"") == 0) &&
-                    (strcmp(g_v_clk, par_0) == 0) &&
+                    (strcmp(sig_0, par_0) == 0) &&
                     (strcmp("'1'", par_1) == 0))
                 {
-                    const char *tmp = g_v_clk;
-                    g_v_clk = g_v_rst;
-                    g_v_rst = tmp;
+                    ident_t tmp = g_i_clk;
+                    g_i_clk = g_i_rst;
+                    g_i_rst = tmp;
+                    sig_0   = istr(g_i_clk);
+                    sig_1   = istr(g_i_rst);
                     g_rst   = 1;
                     g_t_rst = tree_stmt(t, 0);
                 }
                     
                 if ((strcmp(func,"\"=\"") == 0) &&
-                    (strcmp(g_v_clk, par_0) == 0) &&
+                    (strcmp(sig_0, par_0) == 0) &&
                     (strcmp("'0'", par_1) == 0))
                 {
-                    const char *tmp = g_v_clk;
-                    g_v_clk = g_v_rst;
-                    g_v_rst = tmp;
+                    ident_t tmp = g_i_clk;
+                    g_i_clk = g_i_rst;
+                    g_i_rst = tmp;
+                    sig_0   = istr(g_i_clk);
+                    sig_1   = istr(g_i_rst);
                     g_rst   = -1;
                     g_t_rst = tree_stmt(t, 0);
                 }
                 
-                //fprintf(fh, "2 : %s %s %s %s %s %d\n", func, g_v_clk, g_v_rst, par_0, par_1, g_rst);
+                //fprintf(fh, "2 : %s %s %s %s %s %d\n", func, sig_0, sig_1, par_0, par_1, g_rst);
                 //fflush(fh);
             }
             
@@ -850,20 +866,20 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                         }
                         
                         if ((strcmp(func,"IEEE.STD_LOGIC_1164.RISING_EDGE") == 0) &&
-                            (strcmp(g_v_clk, par_0) == 0))
+                            (strcmp(sig_0, par_0) == 0))
                         {
                             g_clk   = 1;
                             g_t_clk = tree_else_stmt(tree_stmt(t, 0), 0);
                         }
                         
                         if ((strcmp(func,"IEEE.STD_LOGIC_1164.FALLING_EDGE") == 0) &&
-                            (strcmp(g_v_clk, par_0) == 0))
+                            (strcmp(sig_0, par_0) == 0))
                         {
                             g_clk   = -1;
                             g_t_clk = tree_else_stmt(tree_stmt(t, 0), 0);
                         }
                         
-                        //fprintf(fh, "1 : %s %s %s %d %d\n", func, g_v_clk, par_0, g_rst, g_clk);
+                        //fprintf(fh, "1 : %s %s %s %d %d\n", func, sig_0, par_0, g_rst, g_clk);
                         //fflush(fh);
                     }
                     
@@ -903,7 +919,7 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
                                 //fprintf(fh, "T_FCALL %s %s %s", func, par_1, par_2);
                             }
                             
-                            if ((strcmp(g_v_clk, par_0) == 0) && (strcmp(g_v_clk, par_1) == 0) &&
+                            if ((strcmp(sig_0, par_0) == 0) && (strcmp(sig_0, par_1) == 0) &&
                                 (strcmp(attr, "EVENT") == 0) && (strcmp(func, "\"=\"") == 0))
                             {
                                 if (strcmp(par_2, "'1'") == 0)
@@ -929,6 +945,9 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
         
     }
     
+    //fprintf(fh, "/* g_clk = %d, sig_0 = %s, g_rst = %d, sig_1 = %s */\n",
+    //        g_clk, sig_0, g_rst, sig_1);
+    
     dump_tab(fh);
     if (g_clk == 0)
     {
@@ -942,20 +961,20 @@ static void dump_always(FILE* fh, tree_t t, int n, tree_t sl, int s)
         
         if (g_rst > 0)
         {
-            fprintf(fh, "posedge %s or ", g_v_rst);
+            fprintf(fh, "posedge %s or ", sig_1);
         }
         else if (g_rst < 0)
         {
-            fprintf(fh, "negedge %s or ", g_v_rst);
+            fprintf(fh, "negedge %s or ", sig_1);
         }
         
         if (g_clk > 0)
         {
-            fprintf(fh, "posedge %s)", g_v_clk);
+            fprintf(fh, "posedge %s)", sig_0);
         }
         else
         {
-            fprintf(fh, "negedge %s)", g_v_clk);
+            fprintf(fh, "negedge %s)", sig_0);
         }
     }
     if (tree_has_ident(t))
@@ -1495,22 +1514,24 @@ static void dump_stmt(FILE* fh, tree_t t)
             if (t == g_t_rst)
             {
                 if (g_rst < 0)
-                    fprintf(fh, "!%s", g_v_rst);
+                    fprintf(fh, "!%s", istr(g_i_rst));
                 else
-                    fputs(g_v_rst, fh);
+                    fputs(istr(g_i_rst), fh);
             }
             // Clock special case
             else if (t == g_t_clk)
             {
                 if (g_clk < 0)
-                    fprintf(fh, "1'b1 /* falling_edge(%s) */", g_v_clk);
+                    fprintf(fh, "1'b1 /* falling_edge(%s) */", istr(g_i_clk));
                 else
-                    fprintf(fh, "1'b1 /* rising_edge(%s) */", g_v_clk);
+                    fprintf(fh, "1'b1 /* rising_edge(%s) */", istr(g_i_clk));
             }
             // Regular case
             else
             {
+                g_if = 1;
                 dump_expr(fh, tree_value(t));
+                g_if = 0;
             }
             fputs(") begin\n", fh);
             g_tab++;
@@ -2100,11 +2121,14 @@ void dump_sv(tree_t *elements, unsigned int n_elements, const char *filename)
     // Clear global variables
     g_tab   = 1;
     g_comb  = 0;
+    g_if    = 0;
     g_gen   = 0;
     g_rst   = 0;
     g_clk   = 0;
     g_t_rst = NULL;
     g_t_clk = NULL;
+    g_i_rst = NULL;
+    g_i_clk = NULL;
     
     trees_to_sv(dump_file, elements, n_elements);
     
