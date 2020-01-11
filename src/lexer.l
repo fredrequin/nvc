@@ -409,7 +409,14 @@ static const char *ieee_id[] =
     "to_integer",
     "to_unsigned",
     "true",
-    "false"
+    "false",
+    "event",
+    "left",
+    "right",
+    "low",
+    "high",
+    "range",
+    "length"
 };
 
 static int parse_id(const char *str)
