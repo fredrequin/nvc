@@ -114,6 +114,12 @@ DECLARE_ARRAY(tree);
 DECLARE_ARRAY(type);
 DECLARE_ARRAY(ident);
 
+/*
+   Check that the tree node pointer is not null
+   Check that the item mask is a one-hot
+   Check that the item mask is allowed in this tree node
+   Lookup for the first occurence in the tree node's items list
+*/
 #define lookup_item(class, t, mask) ({                                  \
          assert((t) != NULL);                                           \
          assert((mask & (mask - 1)) == 0);                              \

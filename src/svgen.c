@@ -267,14 +267,16 @@ static void dump_expr(FILE* fh, tree_t t)
                     fprintf(fh, "%"PRIi64, tree_ival(t));
                     break;
                 }
+                // i.e : floating point numbers
                 case L_REAL:
                 {
-                    fprintf(fh, "r%lf", tree_dval(t));
+                    fprintf(fh, "%lf", tree_dval(t));
                     break;
                 }
+                // i.e : empty case
                 case L_NULL:
                 {
-                    fprintf(fh, "#null");
+                    fprintf(fh, "/* null */");
                     break;
                 }
                 // i.e : vector value or string parameter
@@ -542,6 +544,7 @@ static const char *dump_minify_type(const char *name)
         "STD.STANDARD.INTEGER",
         "STD.STANDARD.NATURAL",
         "STD.STANDARD.POSITIVE",
+        "STD.STANDARD.REAL",
         "STD.STANDARD.STRING",
         "IEEE.NUMERIC_STD.SIGNED",
         "IEEE.NUMERIC_STD.UNSIGNED",
@@ -560,6 +563,7 @@ static const char *dump_minify_type(const char *name)
         "int           %s",
         "int unsigned  %s",
         "int unsigned  %s",
+        "real          %s",
         "string        %s",
         "logic signed  %s",
         "logic         %s",
@@ -1012,13 +1016,16 @@ static void dump_ports(FILE* fh, tree_t t)
 
 static void dump_block(FILE* fh, tree_t t)
 {
-    const int ndecls = tree_decls(t);
-    for (unsigned i = 0; i < ndecls; i++)
+    int i, n;
+    
+    n = tree_decls(t);
+    for (i = 0; i < n; i++)
     {
         dump_decl(fh, tree_decl(t, i));
     }
-    const int nstmts = tree_stmts(t);
-    for (int i = 0; i < nstmts; i++)
+    
+    n = tree_stmts(t);
+    for (i = 0; i < n; i++)
     {
         dump_stmt(fh, tree_stmt(t, i));
     }
@@ -2027,11 +2034,12 @@ static void dump_decls(FILE* fh, tree_t t)
 
 static void dump_arch(FILE* fh, tree_t t)
 {
-    int i;
+    int i, n;
     
     dump_context(fh, t);
     
-    for (i = 0; i < tree_decls(t); i++)
+    n = tree_decls(t);
+    for (i = 0; i < n; i++)
     {
         dump_decl(fh, tree_decl(t, i));
     }
@@ -2039,7 +2047,8 @@ static void dump_arch(FILE* fh, tree_t t)
     fprintf(fh, "\n// VHDL : architecture %s of %s is\n\n",
             istr(tree_ident(t)), istr(tree_ident2(t)));
     
-    for (i = 0; i < tree_stmts(t); i++)
+    n = tree_stmts(t);
+    for (i = 0; i < n; i++)
     {
         dump_stmt(fh, tree_stmt(t, i));
     }
